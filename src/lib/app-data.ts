@@ -185,7 +185,7 @@ export async function fetchProfiles() {
 export async function fetchManagedUsers() {
   const { data, error } = await supabase
     .from("app_users")
-    .select("id,full_name,email,role,organization_id,is_active")
+    .select("id,full_name,email,avatar_url,role,organization_id,is_active")
     .order("full_name", { ascending: true });
   if (!error) {
     const users = (data ?? []) as ProfileRow[];
@@ -228,7 +228,7 @@ export async function fetchOrganizationAssignableUsers(organizationId?: string |
 
   const { data, error } = await supabase
     .from("app_users")
-    .select("id,user_id,full_name,email,role,organization_id,is_active")
+    .select("id,user_id,full_name,email,avatar_url,role,organization_id,is_active")
     .eq("organization_id", organizationId)
     .eq("is_active", true)
     .order("full_name", { ascending: true });
@@ -261,11 +261,11 @@ export async function fetchProfileMap(ids: Array<string | null | undefined>) {
     const [appUsersByIdResult, appUsersByProfileIdResult] = await Promise.all([
       supabase
         .from("app_users")
-        .select("id,user_id,full_name,email,role,organization_id,is_active")
+        .select("id,user_id,full_name,email,avatar_url,role,organization_id,is_active")
         .in("id", missingIds),
       supabase
         .from("app_users")
-        .select("id,user_id,full_name,email,role,organization_id,is_active")
+        .select("id,user_id,full_name,email,avatar_url,role,organization_id,is_active")
         .in("user_id", missingIds),
     ]);
 
@@ -278,7 +278,7 @@ export async function fetchProfileMap(ids: Array<string | null | undefined>) {
         full_name: user.full_name ?? profile?.full_name ?? null,
         email: user.email ?? profile?.email ?? null,
         phone: profile?.phone ?? null,
-        avatar_url: profile?.avatar_url ?? null,
+        avatar_url: user.avatar_url ?? profile?.avatar_url ?? null,
         role: user.role,
         organization_id: user.organization_id ?? profile?.organization_id ?? null,
         is_active: user.is_active,

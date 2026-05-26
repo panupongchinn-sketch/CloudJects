@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Header } from "@/components/layout/header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,6 +81,7 @@ function SettingsPage() {
 
 function ProfileSection() {
   const { user } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [initialProfile, setInitialProfile] = useState<ProfileRow | null>(null);
   const [jobTitle, setJobTitle] = useState("");
@@ -111,10 +112,10 @@ function ProfileSection() {
 
       const [{ data: appUserById, error: appUserByIdError }, { data: appUserByProfileId, error: appUserByProfileIdError }, { data: appUserByEmail, error: appUserByEmailError }] =
         await Promise.all([
-          supabase.from("app_users").select("id, user_id, full_name, email, organization_id").eq("id", user.id).maybeSingle(),
-          supabase.from("app_users").select("id, user_id, full_name, email, organization_id").eq("user_id", user.id).maybeSingle(),
+          supabase.from("app_users").select("id, user_id, full_name, email, avatar_url, organization_id").eq("id", user.id).maybeSingle(),
+          supabase.from("app_users").select("id, user_id, full_name, email, avatar_url, organization_id").eq("user_id", user.id).maybeSingle(),
           user.email
-            ? supabase.from("app_users").select("id, user_id, full_name, email, organization_id").eq("email", user.email).maybeSingle()
+            ? supabase.from("app_users").select("id, user_id, full_name, email, avatar_url, organization_id").eq("email", user.email).maybeSingle()
             : Promise.resolve({ data: null, error: null }),
         ]);
 
@@ -127,6 +128,7 @@ function ProfileSection() {
             id: appUser.id,
             full_name: appUser.full_name,
             email: appUser.email,
+            avatar_url: (appUser as { avatar_url?: string | null }).avatar_url ?? null,
             organization_id: appUser.organization_id,
             source: "app_users" as const,
           }
@@ -142,7 +144,13 @@ function ProfileSection() {
     setSaving(true);
     const update =
       profile.source === "app_users"
-        ? supabase.from("app_users").update({ full_name: profile.full_name }).eq("id", profile.id)
+        ? supabase
+            .from("app_users")
+            .update({
+              full_name: profile.full_name,
+              avatar_url: profile.avatar_url ?? null,
+            })
+            .eq("id", profile.id)
         : supabase
             .from("profiles")
             .update({
@@ -167,6 +175,7 @@ function ProfileSection() {
           user_metadata: {
             ...session.user.user_metadata,
             full_name: profile.full_name,
+            avatar_url: profile.avatar_url ?? null,
           },
         },
       });
@@ -180,15 +189,27 @@ function ProfileSection() {
     setAbout("");
   };
 
-  const changeAvatar = () => {
-    if (!profile || profile.source === "app_users") return;
-    const nextAvatar = window.prompt("Profile photo URL", profile.avatar_url ?? "");
-    if (nextAvatar == null) return;
-    setProfile({ ...profile, avatar_url: nextAvatar.trim() || null });
+  const chooseAvatar = () => {
+    fileInputRef.current?.click();
+  };
+
+  const changeAvatar = async (file?: File) => {
+    if (!profile || !file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be 2MB or smaller");
+      return;
+    }
+
+    const avatarUrl = await readFileAsDataUrl(file);
+    setProfile({ ...profile, avatar_url: avatarUrl });
   };
 
   const removeAvatar = () => {
-    if (!profile || profile.source === "app_users") return;
+    if (!profile) return;
     setProfile({ ...profile, avatar_url: null });
   };
 
@@ -196,7 +217,6 @@ function ProfileSection() {
   if (!profile) return <EmptyCard message="Profile not found" />;
 
   const avatarInitials = getProfileInitials(profile.full_name, profile.email);
-  const photoActionsDisabled = profile.source === "app_users";
 
   return (
     <Card className="overflow-hidden border-slate-200 shadow-sm">
@@ -205,6 +225,17 @@ function ProfileSection() {
         <CardDescription>Manage your personal information and how you appear in CloudJect.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-7 px-8 py-7">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            void changeAvatar(file);
+            event.currentTarget.value = "";
+          }}
+        />
         <div className="grid gap-8 lg:grid-cols-[180px_minmax(0,1fr)]">
           <div className="flex justify-center lg:justify-start">
             <div className="relative h-36 w-36">
@@ -217,10 +248,9 @@ function ProfileSection() {
               </div>
               <button
                 type="button"
-                onClick={changeAvatar}
-                disabled={photoActionsDisabled}
+                onClick={chooseAvatar}
                 className="absolute bottom-2 right-0 flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-md transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
-                title={photoActionsDisabled ? "Photo upload is available for profile accounts only" : "Change photo"}
+                title="Change photo"
               >
                 <Camera className="h-5 w-5" />
               </button>
@@ -238,8 +268,7 @@ function ProfileSection() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <button
                 type="button"
-                disabled={photoActionsDisabled}
-                onClick={changeAvatar}
+                onClick={chooseAvatar}
                 className="inline-flex h-16 min-w-[220px] items-center justify-center gap-3 rounded-lg border border-dashed border-slate-300 bg-white px-5 text-sm font-semibold text-blue-600 transition hover:border-blue-400 hover:bg-blue-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
               >
                 <Upload className="h-5 w-5" />
@@ -248,11 +277,11 @@ function ProfileSection() {
                   <span className="block text-xs font-normal text-muted-foreground">JPG, PNG up to 2MB</span>
                 </span>
               </button>
-              <Button type="button" variant="outline" disabled={photoActionsDisabled} onClick={changeAvatar} className="h-11 gap-2 border-blue-200 text-blue-600 hover:bg-blue-50">
+              <Button type="button" variant="outline" onClick={chooseAvatar} className="h-11 gap-2 border-blue-200 text-blue-600 hover:bg-blue-50">
                 <Pencil className="h-4 w-4" />
                 Change
               </Button>
-              <Button type="button" variant="outline" disabled={photoActionsDisabled} onClick={removeAvatar} className="h-11 gap-2 border-red-200 text-red-600 hover:bg-red-50">
+              <Button type="button" variant="outline" onClick={removeAvatar} className="h-11 gap-2 border-red-200 text-red-600 hover:bg-red-50">
                 <Trash2 className="h-4 w-4" />
                 Remove
               </Button>
@@ -512,6 +541,15 @@ function getProfileInitials(name?: string | null, email?: string | null) {
   const parts = source.split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
   return source.slice(0, 2).toUpperCase();
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("Unable to read image file"));
+    reader.readAsDataURL(file);
+  });
 }
 
 function LoadingCard() {
