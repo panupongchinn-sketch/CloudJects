@@ -12,5 +12,17 @@
     "VITE_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_DbRex1uA60yvMt9Q4HjAew_CBxzZdb_",
     "NEXT_PUBLIC_SUPABASE_URL": "https://utavotoqcrznehfawvik.supabase.co",
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_DbRex1uA60yvMt9Q4HjAew_CBxzZdb_"
+  },
+  "env": {
+    "production": {
+      "vars": {
+        "SUPABASE_URL": "https://utavotoqcrznehfawvik.supabase.co",
+        "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_DbRex1uA60yvMt9Q4HjAew_CBxzZdb_",
+        "VITE_SUPABASE_URL": "https://utavotoqcrznehfawvik.supabase.co",
+        "VITE_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_DbRex1uA60yvMt9Q4HjAew_CBxzZdb_",
+        "NEXT_PUBLIC_SUPABASE_URL": "https://utavotoqcrznehfawvik.supabase.co",
+        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_DbRex1uA60yvMt9Q4HjAew_CBxzZdb_"
+      }
+    }
   }
 }
