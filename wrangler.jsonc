@@ -1,7 +1,16 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "tanstack-start-app",
+  "name": "cloudjects",
+  "keep_vars": true,
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/server.ts",
+  "vars": {
+    "SUPABASE_URL": "https://utavotoqcrznehfawvik.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_DbRex1uA60yvMt9Q4HjAew_CBxzZdb_",
+    "VITE_SUPABASE_URL": "https://utavotoqcrznehfawvik.supabase.co",
+    "VITE_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_DbRex1uA60yvMt9Q4HjAew_CBxzZdb_",
+    "NEXT_PUBLIC_SUPABASE_URL": "https://utavotoqcrznehfawvik.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_DbRex1uA60yvMt9Q4HjAew_CBxzZdb_"
+  }
 }
