@@ -34,6 +34,11 @@ const SendProjectChatMessageSchema = z
     }
   });
 
+const ListProjectChatMessagesSchema = z.object({
+  projectId: z.string().uuid(),
+  limit: z.number().int().min(1).max(500).optional(),
+});
+
 function fileExtension(fileName: string, mimeType: string) {
   const explicit = fileName.split(".").pop()?.trim().toLowerCase();
   if (explicit && /^[a-z0-9]+$/.test(explicit)) return explicit;
@@ -120,4 +125,22 @@ export const sendProjectChatMessage = createServerFn({ method: "POST" })
       }
       throw error;
     }
+  });
+
+export const listProjectChatMessages = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => ListProjectChatMessagesSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { userId } = context as { userId: string };
+    await assertProjectChatAccess(data.projectId, userId);
+
+    const { data: messages, error } = await supabaseAdmin
+      .from("chat_messages")
+      .select("id, project_id, sender_id, body, image_path, created_at")
+      .eq("project_id", data.projectId)
+      .order("created_at", { ascending: true })
+      .limit(data.limit ?? 500);
+
+    if (error) throw new Error(error.message);
+    return { messages: messages ?? [] };
   });

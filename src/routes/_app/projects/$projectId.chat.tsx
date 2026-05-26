@@ -1,10 +1,12 @@
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Send, Loader2, MessageSquare, ImagePlus, X } from "lucide-react";
+import { ImagePlus, Loader2, MessageSquare, Send, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
+import { getAppSessionToken } from "@/lib/app-auth-client";
 import { fetchProfileMap, type ProfileRow } from "@/lib/app-data";
+import { listProjectChatMessages, sendProjectChatMessage } from "@/lib/chat.functions";
+import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_app/projects/$projectId/chat")({
   component: ChatPage,
@@ -27,12 +29,11 @@ type PendingImage = {
   previewUrl: string;
 };
 
-const CHAT_IMAGE_BUCKET = "project-photos";
+const CHAT_IMAGE_BUCKET = "chat-images";
 const MAX_CHAT_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
 function formatTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
 }
 
 function chatImageUrl(path?: string | null) {
@@ -56,11 +57,11 @@ function readFileAsDataUrl(file: File) {
   });
 }
 
-function initialsOf(p?: ProfileLite | null) {
-  const name = p?.full_name || p?.email || "?";
-  return name
+function initialsOf(profile?: ProfileLite | null) {
+  const source = profile?.full_name || profile?.email || "?";
+  return source
     .split(/\s+/)
-    .map((s) => s[0])
+    .map((part) => part[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
@@ -69,7 +70,7 @@ function initialsOf(p?: ProfileLite | null) {
 function ChatPage() {
   const { projectId } = useParams({ from: "/_app/projects/$projectId/chat" });
   const { user, loading: authLoading } = useAuth();
-  const roomId = useMemo(() => projectId.toLowerCase(), [projectId]);
+  const roomId = useMemo(() => projectId, [projectId]);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ProfileLite>>({});
@@ -139,23 +140,30 @@ function ChatPage() {
 
     (async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("chat_messages")
-        .select("id, project_id, sender_id, body, image_path, created_at")
-        .eq("project_id", roomId)
-        .order("created_at", { ascending: true })
-        .limit(500);
-
-      if (cancelled) return;
-
-      if (error) {
-        toast.error("โหลดข้อความไม่สำเร็จ", { description: error.message });
-        setMessages([]);
-      } else {
-        setMessages((data as ChatMessage[]) ?? []);
+      const token = getAppSessionToken();
+      if (!token) {
+        if (!cancelled) {
+          setMessages([]);
+          setLoading(false);
+        }
+        return;
       }
 
-      setLoading(false);
+      try {
+        const result = await listProjectChatMessages({
+          data: { projectId: roomId, limit: 500 },
+          headers: { "x-app-session": token },
+        });
+
+        if (cancelled) return;
+        setMessages((result.messages as ChatMessage[]) ?? []);
+      } catch (error: any) {
+        if (cancelled) return;
+        toast.error("โหลดข้อความไม่สำเร็จ", { description: error?.message ?? "Unknown error" });
+        setMessages([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
 
     return () => {
@@ -165,17 +173,17 @@ function ChatPage() {
 
   useEffect(() => {
     if (!loading) return;
-    const timeout = window.setTimeout(() => setLoading(false), 10000);
+    const timeout = window.setTimeout(() => setLoading(false), 8000);
     return () => window.clearTimeout(timeout);
   }, [loading, roomId]);
 
   useEffect(() => {
-    const ids = Array.from(new Set(messages.map((m) => m.sender_id).filter(Boolean) as string[]));
-    const missing = ids.filter((id) => !profiles[id]);
-    if (missing.length === 0) return;
+    const ids = Array.from(new Set(messages.map((message) => message.sender_id).filter(Boolean) as string[]));
+    const missingIds = ids.filter((id) => !profiles[id]);
+    if (missingIds.length === 0) return;
 
     (async () => {
-      const resolvedProfiles = await fetchProfileMap(missing);
+      const resolvedProfiles = await fetchProfileMap(missingIds);
       if (resolvedProfiles.size === 0) return;
 
       setProfiles((prev) => {
@@ -212,23 +220,19 @@ function ChatPage() {
   }, [roomId]);
 
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
+    const element = scrollRef.current;
+    if (!element) return;
+    element.scrollTop = element.scrollHeight;
   }, [messages.length, loading]);
 
   useEffect(() => {
     return () => {
-      if (selectedImage?.previewUrl) {
-        URL.revokeObjectURL(selectedImage.previewUrl);
-      }
+      if (selectedImage?.previewUrl) URL.revokeObjectURL(selectedImage.previewUrl);
     };
   }, [selectedImage]);
 
   const clearSelectedImage = () => {
-    if (selectedImage?.previewUrl) {
-      URL.revokeObjectURL(selectedImage.previewUrl);
-    }
+    if (selectedImage?.previewUrl) URL.revokeObjectURL(selectedImage.previewUrl);
     setSelectedImage(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -244,10 +248,7 @@ function ChatPage() {
       return;
     }
 
-    if (selectedImage?.previewUrl) {
-      URL.revokeObjectURL(selectedImage.previewUrl);
-    }
-
+    if (selectedImage?.previewUrl) URL.revokeObjectURL(selectedImage.previewUrl);
     setSelectedImage({ file, previewUrl: URL.createObjectURL(file) });
   };
 
@@ -261,20 +262,15 @@ function ChatPage() {
 
     let optimisticPreviewUrl: string | null = pendingImage?.previewUrl ?? null;
     const optimisticId = `tmp-${Date.now()}`;
-    let uploadedPath: string | null = null;
     const senderId = currentSender?.id ?? user.id;
 
     try {
-      if (pendingImage) {
-        uploadedPath = await readFileAsDataUrl(pendingImage.file);
-      }
-
       const optimistic: ChatMessage = {
         id: optimisticId,
         project_id: roomId,
         sender_id: senderId,
         body: body || null,
-        image_path: uploadedPath,
+        image_path: null,
         created_at: new Date().toISOString(),
         local_preview_url: optimisticPreviewUrl,
       };
@@ -284,22 +280,23 @@ function ChatPage() {
       setSelectedImage(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
 
-      let { data: inserted, error } = await supabase
-        .from("chat_messages")
-        .insert({
-          project_id: roomId,
-          sender_id: senderId,
-          body: body || null,
-          image_path: uploadedPath,
-        })
-        .select("id, project_id, sender_id, body, image_path, created_at")
-        .single();
+      const token = getAppSessionToken();
+      if (!token) throw new Error("Unauthorized");
 
-      if (error) throw error;
+      const imageBase64 = pendingImage ? await readFileAsDataUrl(pendingImage.file) : null;
+      const result = await sendProjectChatMessage({
+        data: {
+          projectId: roomId,
+          body: body || undefined,
+          fileName: pendingImage?.file.name,
+          mimeType: pendingImage?.file.type as "image/jpeg" | "image/png" | "image/webp" | "image/gif" | undefined,
+          dataBase64: imageBase64 ? imageBase64.split(",")[1] ?? "" : undefined,
+        },
+        headers: { "x-app-session": token },
+      });
 
-      setMessages((prev) =>
-        prev.map((item) => (item.id === optimisticId ? ({ ...(inserted as ChatMessage), sender_id: senderId } as ChatMessage) : item)),
-      );
+      const inserted = result.message as ChatMessage;
+      setMessages((prev) => prev.map((item) => (item.id === optimisticId ? inserted : item)));
 
       if (optimisticPreviewUrl) {
         URL.revokeObjectURL(optimisticPreviewUrl);
@@ -316,20 +313,18 @@ function ChatPage() {
         });
       }
 
-      toast.error("ส่งรูปไม่สำเร็จ", {
-        description: error?.message ?? "ไม่สามารถอัปโหลดรูปได้",
+      toast.error("ส่งข้อความไม่สำเร็จ", {
+        description: error?.message ?? "ไม่สามารถส่งข้อความได้",
       });
     } finally {
-      if (optimisticPreviewUrl) {
-        URL.revokeObjectURL(optimisticPreviewUrl);
-      }
+      if (optimisticPreviewUrl) URL.revokeObjectURL(optimisticPreviewUrl);
       setSending(false);
     }
   };
 
-  const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
+  const onKey = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
       void send();
     }
   };
@@ -408,11 +403,7 @@ function ChatPage() {
       <footer className="space-y-3 border-t border-border p-3">
         {selectedImage ? (
           <div className="flex items-start gap-3 rounded-xl border border-border bg-background p-3">
-            <img
-              src={selectedImage.previewUrl}
-              alt={selectedImage.file.name}
-              className="h-20 w-20 rounded-lg object-cover"
-            />
+            <img src={selectedImage.previewUrl} alt={selectedImage.file.name} className="h-20 w-20 rounded-lg object-cover" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium">{selectedImage.file.name}</div>
               <div className="text-xs text-muted-foreground">
@@ -436,7 +427,7 @@ function ChatPage() {
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={(e) => onPickImage(e.target.files?.[0] ?? null)}
+            onChange={(event) => onPickImage(event.target.files?.[0] ?? null)}
             disabled={authLoading || !user || sending}
           />
           <button
@@ -450,7 +441,7 @@ function ChatPage() {
           </button>
           <input
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(event) => setInput(event.target.value)}
             onKeyDown={onKey}
             disabled={authLoading || !user || sending}
             placeholder={user ? "พิมพ์ข้อความ แล้วกด Enter..." : "กรุณาเข้าสู่ระบบเพื่อแชท"}
