@@ -12,6 +12,7 @@ type AppUserAccessRow = {
 
 export type ProjectSettingsAccess = {
   canManageSettings: boolean;
+  isPlatformAdmin: boolean;
   userIds: string[];
   roles: string[];
 };
@@ -20,12 +21,12 @@ export async function fetchProjectSettingsAccess(
   projectId: string,
   user: AppSessionUser | null,
 ): Promise<ProjectSettingsAccess> {
-  if (!user) return { canManageSettings: false, userIds: [], roles: [] };
+  if (!user) return { canManageSettings: false, isPlatformAdmin: false, userIds: [], roles: [] };
 
   const userIds = new Set<string>([user.id]);
   const roles = new Set<string>();
 
-  const [appUserByIdResult, appUserByAuthIdResult, appUserByEmailResult, authRolesResult, projectResult] =
+  const [appUserByIdResult, appUserByAuthIdResult, appUserByEmailResult, authRolesResult, projectResult, platformAdminResult] =
     await Promise.all([
       supabase.from("app_users").select("id,user_id,role").eq("id", user.id).maybeSingle(),
       supabase.from("app_users").select("id,user_id,role").eq("user_id", user.id).maybeSingle(),
@@ -34,6 +35,7 @@ export async function fetchProjectSettingsAccess(
         : Promise.resolve({ data: null, error: null }),
       supabase.from("user_roles").select("role").eq("user_id", user.id),
       supabase.from("projects").select("manager_id").eq("id", projectId).maybeSingle(),
+      supabase.from("platform_admins").select("id").eq("user_id", user.id).eq("is_active", true).maybeSingle(),
     ]);
 
   const appUsers = [
@@ -62,12 +64,14 @@ export async function fetchProjectSettingsAccess(
     : { data: [], error: null };
 
   const isAdmin = Array.from(roles).some((role) => ADMIN_ROLES.has(role));
+  const isPlatformAdmin = Boolean(platformAdminResult.data);
   const isProjectManager =
     Boolean(projectResult.data?.manager_id && userIds.has(projectResult.data.manager_id)) ||
     (memberResult.data ?? []).some((member) => PROJECT_MANAGER_ROLES.has(member.role));
 
   return {
-    canManageSettings: isAdmin || isProjectManager,
+    canManageSettings: isAdmin || isPlatformAdmin || isProjectManager,
+    isPlatformAdmin,
     userIds: resolvedUserIds,
     roles: Array.from(roles),
   };
