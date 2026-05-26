@@ -23,11 +23,15 @@ function readState(): AuthState {
 }
 
 export function useAuth(): AuthState {
-  const [state, setState] = useState<AuthState>(() => ({
-    session: null,
-    user: null,
-    loading: typeof window === "undefined",
-  }));
+  const [state, setState] = useState<AuthState>(() =>
+    typeof window === "undefined"
+      ? {
+          session: null,
+          user: null,
+          loading: true,
+        }
+      : readState(),
+  );
 
   useEffect(() => {
     const sync = () => setState(readState());
