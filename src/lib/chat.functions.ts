@@ -49,7 +49,7 @@ function fileExtension(fileName: string, mimeType: string) {
 }
 
 async function assertProjectChatAccess(projectId: string, userId: string) {
-  const [{ data: project, error: projectError }, { data: membership, error: memberError }, { data: adminRoles, error: roleError }] =
+  const [{ data: project, error: projectError }, { data: membership, error: memberError }, { data: adminRoles, error: roleError }, { data: platformAdmin, error: platformAdminError }] =
     await Promise.all([
       supabaseAdmin.from("projects").select("id, manager_id").eq("id", projectId).maybeSingle(),
       supabaseAdmin.from("project_members").select("id").eq("project_id", projectId).eq("user_id", userId).maybeSingle(),
@@ -59,14 +59,16 @@ async function assertProjectChatAccess(projectId: string, userId: string) {
         .eq("user_id", userId)
         .in("role", ["super_admin", "company_admin"])
         .limit(1),
+      supabaseAdmin.from("platform_admins").select("id").eq("user_id", userId).eq("is_active", true).maybeSingle(),
     ]);
 
   if (projectError) throw new Error(projectError.message);
   if (memberError) throw new Error(memberError.message);
   if (roleError) throw new Error(roleError.message);
+  if (platformAdminError) throw new Error(platformAdminError.message);
   if (!project) throw new Error("Project not found");
 
-  const allowed = project.manager_id === userId || Boolean(membership) || Boolean(adminRoles?.length);
+  const allowed = project.manager_id === userId || Boolean(membership) || Boolean(adminRoles?.length) || Boolean(platformAdmin);
   if (!allowed) throw new Error("Unauthorized");
 }
 

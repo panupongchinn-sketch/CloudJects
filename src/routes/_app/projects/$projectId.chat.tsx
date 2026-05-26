@@ -27,26 +27,8 @@ type PendingImage = {
   previewUrl: string;
 };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CHAT_IMAGE_BUCKET = "project-photos";
 const MAX_CHAT_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
-
-function toProjectUuid(s: string): string {
-  if (UUID_RE.test(s)) return s.toLowerCase();
-  let h1 = 0x811c9dc5;
-  let h2 = 0xcbf29ce4;
-  let h3 = 0x84222325;
-  let h4 = 0xfb8c4d3b;
-  for (let i = 0; i < s.length; i++) {
-    const c = s.charCodeAt(i);
-    h1 = Math.imul(h1 ^ c, 16777619) >>> 0;
-    h2 = Math.imul(h2 ^ c, 2246822519) >>> 0;
-    h3 = Math.imul(h3 ^ c, 3266489917) >>> 0;
-    h4 = Math.imul(h4 ^ c, 374761393) >>> 0;
-  }
-  const hex = [h1, h2, h3, h4].map((n) => n.toString(16).padStart(8, "0")).join("");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
-}
 
 function formatTime(iso: string) {
   const d = new Date(iso);
@@ -87,7 +69,7 @@ function initialsOf(p?: ProfileLite | null) {
 function ChatPage() {
   const { projectId } = useParams({ from: "/_app/projects/$projectId/chat" });
   const { user, loading: authLoading } = useAuth();
-  const roomId = useMemo(() => toProjectUuid(projectId), [projectId]);
+  const roomId = useMemo(() => projectId.toLowerCase(), [projectId]);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ProfileLite>>({});
@@ -180,6 +162,12 @@ function ChatPage() {
       cancelled = true;
     };
   }, [roomId]);
+
+  useEffect(() => {
+    if (!loading) return;
+    const timeout = window.setTimeout(() => setLoading(false), 10000);
+    return () => window.clearTimeout(timeout);
+  }, [loading, roomId]);
 
   useEffect(() => {
     const ids = Array.from(new Set(messages.map((m) => m.sender_id).filter(Boolean) as string[]));
