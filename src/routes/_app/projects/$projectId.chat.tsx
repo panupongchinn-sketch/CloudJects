@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getAppSessionToken } from "@/lib/app-auth-client";
 import { fetchProfileMap, type ProfileRow } from "@/lib/app-data";
-import { listProjectChatMessages, sendProjectChatMessage } from "@/lib/chat.functions";
+import { listProjectChatMessages, markProjectChatRead, sendProjectChatMessage } from "@/lib/chat.functions";
 import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_app/projects/$projectId/chat")({
@@ -82,6 +82,7 @@ function ChatPage() {
   const [currentSenderIds, setCurrentSenderIds] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastMarkedAtRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -210,6 +211,22 @@ function ChatPage() {
         (payload) => {
           const message = payload.new as ChatMessage;
           setMessages((prev) => (prev.some((item) => item.id === message.id) ? prev : [...prev, message]));
+          if (message.sender_id && message.sender_id !== user?.id && document.visibilityState === "visible") {
+            void (async () => {
+              const token = getAppSessionToken();
+              if (!token) return;
+              try {
+                const result = await markProjectChatRead({
+                  data: { projectId: roomId, lastReadAt: message.created_at },
+                  headers: { "x-app-session": token },
+                });
+                lastMarkedAtRef.current = result.lastReadAt ?? message.created_at;
+                window.dispatchEvent(new CustomEvent("project-chat-read", { detail: { projectId: roomId } }));
+              } catch {
+                // Ignore transient read-state failures.
+              }
+            })();
+          }
         },
       )
       .subscribe();
@@ -217,13 +234,69 @@ function ChatPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [roomId]);
+  }, [roomId, user?.id]);
 
   useEffect(() => {
     const element = scrollRef.current;
     if (!element) return;
     element.scrollTop = element.scrollHeight;
   }, [messages.length, loading]);
+
+  useEffect(() => {
+    if (loading || authLoading || !user || messages.length === 0 || document.visibilityState !== "visible") return;
+
+    const lastMessageAt = messages[messages.length - 1]?.created_at;
+    if (!lastMessageAt) return;
+    if (lastMarkedAtRef.current && new Date(lastMarkedAtRef.current).getTime() >= new Date(lastMessageAt).getTime()) return;
+
+    const token = getAppSessionToken();
+    if (!token) return;
+
+    void (async () => {
+      try {
+        const result = await markProjectChatRead({
+          data: { projectId: roomId, lastReadAt: lastMessageAt },
+          headers: { "x-app-session": token },
+        });
+        lastMarkedAtRef.current = result.lastReadAt ?? lastMessageAt;
+        window.dispatchEvent(new CustomEvent("project-chat-read", { detail: { projectId: roomId } }));
+      } catch {
+        // Ignore transient read-state failures.
+      }
+    })();
+  }, [authLoading, loading, messages, roomId, user]);
+
+  useEffect(() => {
+    const syncReadState = () => {
+      if (document.visibilityState !== "visible") return;
+      const lastMessageAt = messages[messages.length - 1]?.created_at;
+      if (!lastMessageAt || !user) return;
+      if (lastMarkedAtRef.current && new Date(lastMarkedAtRef.current).getTime() >= new Date(lastMessageAt).getTime()) return;
+
+      const token = getAppSessionToken();
+      if (!token) return;
+
+      void (async () => {
+        try {
+          const result = await markProjectChatRead({
+            data: { projectId: roomId, lastReadAt: lastMessageAt },
+            headers: { "x-app-session": token },
+          });
+          lastMarkedAtRef.current = result.lastReadAt ?? lastMessageAt;
+          window.dispatchEvent(new CustomEvent("project-chat-read", { detail: { projectId: roomId } }));
+        } catch {
+          // Ignore transient read-state failures.
+        }
+      })();
+    };
+
+    document.addEventListener("visibilitychange", syncReadState);
+    window.addEventListener("focus", syncReadState);
+    return () => {
+      document.removeEventListener("visibilitychange", syncReadState);
+      window.removeEventListener("focus", syncReadState);
+    };
+  }, [messages, roomId, user]);
 
   useEffect(() => {
     return () => {

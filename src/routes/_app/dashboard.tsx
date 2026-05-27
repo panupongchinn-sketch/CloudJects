@@ -10,10 +10,9 @@ import {
 import { Header } from "@/components/layout/header";
 import { StatusBadge } from "@/components/status-badge";
 import { ProgressBar } from "@/components/progress-bar";
-import { fetchApprovals, fetchProjects } from "@/lib/app-data";
+import { fetchDashboardData } from "@/lib/app-data";
 
-type ProjectItem = Awaited<ReturnType<typeof fetchProjects>>[number];
-type ApprovalItem = Awaited<ReturnType<typeof fetchApprovals>>[number];
+type DashboardState = Awaited<ReturnType<typeof fetchDashboardData>>;
 
 export const Route = createFileRoute("/_app/dashboard")({
   component: DashboardPage,
@@ -21,34 +20,29 @@ export const Route = createFileRoute("/_app/dashboard")({
 });
 
 function DashboardPage() {
-  const [projects, setProjects] = useState<ProjectItem[]>([]);
-  const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
+  const [data, setData] = useState<DashboardState | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([fetchProjects(), fetchApprovals()])
-      .then(([projectRows, approvalRows]) => {
-        setProjects(projectRows);
-        setApprovals(approvalRows);
+    fetchDashboardData()
+      .then((result) => {
+        setData(result);
       })
       .finally(() => setLoading(false));
   }, []);
 
-  const active = projects.filter((project) => project.status === "In Progress").length;
-  const overdueTasks = projects.reduce((sum, project) => sum + project.overdueCount, 0);
-  const pendingApprovals = approvals.filter((approval) => approval.status === "Pending").length;
   const kpis = [
-    { label: "โครงการทั้งหมด", sub: "All projects", value: projects.length, icon: FolderKanban, tone: "info" },
-    { label: "กำลังดำเนินการ", sub: "In progress", value: active, icon: ActivityIcon, tone: "primary" },
-    { label: "งานล่าช้า", sub: "Overdue tasks", value: overdueTasks, icon: AlertTriangle, tone: "danger" },
-    { label: "รออนุมัติ", sub: "Pending approvals", value: pendingApprovals, icon: ClipboardCheck, tone: "warning" },
+    { label: "โครงการทั้งหมด", sub: "All projects", value: data?.totalProjects ?? 0, icon: FolderKanban, tone: "info" },
+    { label: "กำลังดำเนินการ", sub: "In progress", value: data?.activeProjects ?? 0, icon: ActivityIcon, tone: "primary" },
+    { label: "งานล่าช้า", sub: "Overdue tasks", value: data?.overdueTasks ?? 0, icon: AlertTriangle, tone: "danger" },
+    { label: "รออนุมัติ", sub: "Pending approvals", value: data?.pendingApprovals ?? 0, icon: ClipboardCheck, tone: "warning" },
   ];
 
   return (
     <>
       <Header title="Dashboard" subtitle="ภาพรวมการดำเนินงานจาก Supabase" />
-      <main className="flex-1 p-4 lg:p-6 space-y-6">
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+      <main className="flex-1 space-y-6 p-4 lg:p-6">
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
           {kpis.map((kpi) => {
             const Icon = kpi.icon;
             const toneBg =
@@ -62,12 +56,12 @@ function DashboardPage() {
             return (
               <div key={kpi.label} className="card-surface p-4 lg:p-5">
                 <div className="flex items-start justify-between gap-2">
-                  <div className={`h-10 w-10 rounded-lg grid place-items-center ${toneBg}`}>
+                  <div className={`grid h-10 w-10 place-items-center rounded-lg ${toneBg}`}>
                     <Icon className="h-5 w-5" />
                   </div>
                   <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
                 </div>
-                <div className="mt-3 text-2xl lg:text-3xl font-semibold tabular-nums">
+                <div className="mt-3 text-2xl font-semibold tabular-nums lg:text-3xl">
                   {loading ? "-" : kpi.value}
                 </div>
                 <div className="mt-1 text-sm font-medium">{kpi.label}</div>
@@ -77,33 +71,44 @@ function DashboardPage() {
           })}
         </section>
 
-        <section className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <div className="card-surface p-5 xl:col-span-2">
-            <div className="flex items-center justify-between mb-4">
+            <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="font-semibold">ความคืบหน้าโครงการ</h2>
                 <p className="text-xs text-muted-foreground">Project progress overview</p>
               </div>
-              <Link to="/projects" className="text-xs text-primary hover:underline">ดูทั้งหมด</Link>
+              <Link to="/projects" className="text-xs text-primary hover:underline">
+                ดูทั้งหมด
+              </Link>
             </div>
             <div className="space-y-4">
               {loading ? (
                 <EmptyMini text="กำลังโหลด..." />
-              ) : projects.length === 0 ? (
+              ) : (data?.projects.length ?? 0) === 0 ? (
                 <EmptyMini text="ยังไม่มีโครงการในฐานข้อมูล" />
               ) : (
-                projects.slice(0, 5).map((project) => (
+                data!.projects.map((project) => (
                   <div key={project.id}>
-                    <div className="flex items-center justify-between gap-3 mb-1.5">
-                      <Link to="/projects/$projectId" params={{ projectId: project.id }} className="text-sm font-medium truncate hover:text-primary">
+                    <div className="mb-1.5 flex items-center justify-between gap-3">
+                      <Link
+                        to="/projects/$projectId"
+                        params={{ projectId: project.id }}
+                        className="truncate text-sm font-medium hover:text-primary"
+                      >
                         {project.name}
                       </Link>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex shrink-0 items-center gap-2">
                         <StatusBadge kind="project" value={project.status} />
-                        <span className="text-sm font-semibold tabular-nums w-10 text-right">{project.progress}%</span>
+                        <span className="w-10 text-right text-sm font-semibold tabular-nums">
+                          {project.progress}%
+                        </span>
                       </div>
                     </div>
-                    <ProgressBar value={project.progress} tone={project.overdueCount > 0 ? "danger" : "default"} />
+                    <ProgressBar
+                      value={project.progress}
+                      tone={project.overdueCount > 0 ? "danger" : "default"}
+                    />
                     <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
                       <span>{project.client?.name ?? "-"}</span>
                       <span>{project.taskCount} tasks · {project.overdueCount} overdue</span>
@@ -118,13 +123,17 @@ function DashboardPage() {
             <h2 className="font-semibold">รายการอนุมัติ</h2>
             <p className="text-xs text-muted-foreground">Pending approvals</p>
             <div className="mt-4 divide-y divide-border">
-              {approvals.filter((approval) => approval.status === "Pending").slice(0, 5).map((approval) => (
+              {(data?.approvals ?? []).map((approval) => (
                 <div key={approval.id} className="py-3">
                   <div className="text-sm font-medium">{approval.note || approval.ref_type}</div>
-                  <div className="text-xs text-muted-foreground">{approval.projects?.name ?? "-"} · {approval.created_at.slice(0, 10)}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {approval.projects?.name ?? "-"} · {approval.created_at.slice(0, 10)}
+                  </div>
                 </div>
               ))}
-              {!loading && pendingApprovals === 0 ? <EmptyMini text="ไม่มีรายการรออนุมัติ" /> : null}
+              {!loading && (data?.pendingApprovals ?? 0) === 0 ? (
+                <EmptyMini text="ไม่มีรายการรออนุมัติ" />
+              ) : null}
             </div>
           </div>
         </section>

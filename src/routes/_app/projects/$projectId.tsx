@@ -19,7 +19,10 @@ import { Header } from "@/components/layout/header";
 import { ProgressBar } from "@/components/progress-bar";
 import { StatusBadge } from "@/components/status-badge";
 import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
 import { fetchProjectBundle, isOverdue } from "@/lib/app-data";
+import { getAppSessionToken } from "@/lib/app-auth-client";
+import { getProjectChatUnreadState } from "@/lib/chat.functions";
 import { fetchProjectSettingsAccess } from "@/lib/project-access";
 import { getProjectHeaderBackgroundStyle } from "@/lib/project-header-backgrounds";
 import { cn } from "@/lib/utils";
@@ -52,6 +55,7 @@ function ProjectLayout() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [canManageSettings, setCanManageSettings] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,6 +94,86 @@ function ProjectLayout() {
       cancelled = true;
     };
   }, [authLoading, projectId, user]);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    let cancelled = false;
+
+    (async () => {
+      if (!user) {
+        setUnreadChatCount(0);
+        return;
+      }
+
+      const token = getAppSessionToken();
+      if (!token) {
+        setUnreadChatCount(0);
+        return;
+      }
+
+      try {
+        const result = await getProjectChatUnreadState({
+          data: { projectId },
+          headers: { "x-app-session": token },
+        });
+
+        if (!cancelled) {
+          setUnreadChatCount(result.unreadCount ?? 0);
+        }
+      } catch {
+        if (!cancelled) {
+          setUnreadChatCount(0);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, projectId, user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const chatPath = `/projects/${projectId}/chat`;
+    const channel = supabase
+      .channel(`project-chat-unread:${projectId}:${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "chat_messages", filter: `project_id=eq.${projectId}` },
+        (payload) => {
+          const message = payload.new as { sender_id?: string | null };
+          if (!message.sender_id || message.sender_id === user.id) return;
+
+          if (pathname === chatPath && document.visibilityState === "visible") {
+            setUnreadChatCount(0);
+            return;
+          }
+
+          setUnreadChatCount((prev) => prev + 1);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [pathname, projectId, user]);
+
+  useEffect(() => {
+    const onRead = (event: Event) => {
+      const detail = (event as CustomEvent<{ projectId?: string }>).detail;
+      if (detail?.projectId === projectId) {
+        setUnreadChatCount(0);
+      }
+    };
+
+    window.addEventListener("project-chat-read", onRead);
+    return () => {
+      window.removeEventListener("project-chat-read", onRead);
+    };
+  }, [projectId]);
 
   const project = bundle?.project;
   const overdueCount = bundle?.tasks.filter((task) => isOverdue(task)).length ?? 0;
@@ -196,7 +280,14 @@ function ProjectLayout() {
                       )}
                     >
                       <Icon className="h-4 w-4" />
-                      {tab.label}
+                      <span className="inline-flex items-center gap-2">
+                        <span>{tab.label}</span>
+                        {tab.to === "/projects/$projectId/chat" && unreadChatCount > 0 ? (
+                          <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                            {unreadChatCount > 99 ? "99+" : unreadChatCount}
+                          </span>
+                        ) : null}
+                      </span>
                     </Link>
                   </li>
                 );

@@ -39,6 +39,15 @@ const ListProjectChatMessagesSchema = z.object({
   limit: z.number().int().min(1).max(500).optional(),
 });
 
+const ProjectChatSchema = z.object({
+  projectId: z.string().uuid(),
+});
+
+const MarkProjectChatReadSchema = z.object({
+  projectId: z.string().uuid(),
+  lastReadAt: z.string().datetime().optional(),
+});
+
 function fileExtension(fileName: string, mimeType: string) {
   const explicit = fileName.split(".").pop()?.trim().toLowerCase();
   if (explicit && /^[a-z0-9]+$/.test(explicit)) return explicit;
@@ -143,4 +152,74 @@ export const listProjectChatMessages = createServerFn({ method: "POST" })
 
     if (error) throw new Error(error.message);
     return { messages: messages ?? [] };
+  });
+
+export const getProjectChatUnreadState = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => ProjectChatSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { userId } = context as { userId: string };
+    await assertProjectChatAccess(data.projectId, userId);
+
+    const { data: readState, error: readStateError } = await supabaseAdmin
+      .from("project_chat_reads")
+      .select("last_read_at")
+      .eq("project_id", data.projectId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (readStateError) throw new Error(readStateError.message);
+
+    let unreadQuery = supabaseAdmin
+      .from("chat_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", data.projectId)
+      .neq("sender_id", userId);
+
+    if (readState?.last_read_at) {
+      unreadQuery = unreadQuery.gt("created_at", readState.last_read_at);
+    }
+
+    const { count, error } = await unreadQuery;
+    if (error) throw new Error(error.message);
+
+    return {
+      unreadCount: count ?? 0,
+      lastReadAt: readState?.last_read_at ?? null,
+    };
+  });
+
+export const markProjectChatRead = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => MarkProjectChatReadSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { userId } = context as { userId: string };
+    await assertProjectChatAccess(data.projectId, userId);
+
+    const nextLastReadAt = data.lastReadAt ?? new Date().toISOString();
+
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from("project_chat_reads")
+      .select("last_read_at")
+      .eq("project_id", data.projectId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (existingError) throw new Error(existingError.message);
+
+    if (existing?.last_read_at && new Date(existing.last_read_at).getTime() >= new Date(nextLastReadAt).getTime()) {
+      return { lastReadAt: existing.last_read_at };
+    }
+
+    const { error } = await supabaseAdmin.from("project_chat_reads").upsert(
+      {
+        project_id: data.projectId,
+        user_id: userId,
+        last_read_at: nextLastReadAt,
+      },
+      { onConflict: "project_id,user_id" },
+    );
+
+    if (error) throw new Error(error.message);
+    return { lastReadAt: nextLastReadAt };
   });

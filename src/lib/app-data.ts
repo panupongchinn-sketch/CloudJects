@@ -294,6 +294,104 @@ export async function fetchProfileMap(ids: Array<string | null | undefined>) {
   return profiles;
 }
 
+export type DashboardProjectRow = Pick<
+  ProjectRow,
+  "id" | "name" | "status" | "progress" | "created_at"
+> & {
+  client?: Pick<ClientRow, "id" | "name"> | null;
+  taskCount: number;
+  overdueCount: number;
+};
+
+export type DashboardApprovalRow = Pick<
+  ApprovalRow,
+  "id" | "ref_type" | "status" | "note" | "created_at"
+> & {
+  projects?: Pick<ProjectRow, "id" | "name" | "code"> | null;
+};
+
+export type DashboardData = {
+  totalProjects: number;
+  activeProjects: number;
+  overdueTasks: number;
+  pendingApprovals: number;
+  projects: DashboardProjectRow[];
+  approvals: DashboardApprovalRow[];
+};
+
+export async function fetchDashboardData(): Promise<DashboardData> {
+  const today = new Date().toISOString().slice(0, 10);
+  const [projectsCountResult, activeProjectsCountResult, overdueTasksCountResult, pendingApprovalsCountResult, projectsResult, approvalsResult] =
+    await Promise.all([
+      supabase.from("projects").select("id", { count: "exact", head: true }),
+      supabase.from("projects").select("id", { count: "exact", head: true }).eq("status", "In Progress"),
+      supabase
+        .from("tasks")
+        .select("id", { count: "exact", head: true })
+        .neq("status", "Completed")
+        .lt("due_date", today),
+      supabase.from("approvals").select("id", { count: "exact", head: true }).eq("status", "Pending"),
+      supabase
+        .from("projects")
+        .select("id,name,status,progress,created_at,clients(id,name)")
+        .order("created_at", { ascending: false })
+        .limit(5),
+      supabase
+        .from("approvals")
+        .select("id,ref_type,status,note,created_at,projects(id,name,code)")
+        .eq("status", "Pending")
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ]);
+
+  if (projectsCountResult.error) throw projectsCountResult.error;
+  if (activeProjectsCountResult.error) throw activeProjectsCountResult.error;
+  if (overdueTasksCountResult.error) throw overdueTasksCountResult.error;
+  if (pendingApprovalsCountResult.error) throw pendingApprovalsCountResult.error;
+  if (projectsResult.error) throw projectsResult.error;
+  if (approvalsResult.error) throw approvalsResult.error;
+
+  const projectRows = (projectsResult.data ?? []) as Array<
+    Pick<ProjectRow, "id" | "name" | "status" | "progress" | "created_at"> & {
+      clients?: Pick<ClientRow, "id" | "name"> | null;
+    }
+  >;
+  const projectIds = projectRows.map((project) => project.id);
+
+  const projectTasksResult = await (
+    projectIds.length
+      ? supabase.from("tasks").select("id,project_id,status,due_date").in("project_id", projectIds)
+      : Promise.resolve({ data: [], error: null })
+  );
+
+  if (projectTasksResult.error) throw projectTasksResult.error;
+
+  const taskStats = new Map<string, { total: number; overdue: number }>();
+  for (const task of projectTasksResult.data ?? []) {
+    const current = taskStats.get(task.project_id) ?? { total: 0, overdue: 0 };
+    current.total += 1;
+    if (isOverdue(task)) current.overdue += 1;
+    taskStats.set(task.project_id, current);
+  }
+
+  return {
+    totalProjects: projectsCountResult.count ?? 0,
+    activeProjects: activeProjectsCountResult.count ?? 0,
+    overdueTasks: overdueTasksCountResult.count ?? 0,
+    pendingApprovals: pendingApprovalsCountResult.count ?? 0,
+    projects: projectRows.map((project) => {
+      const stats = taskStats.get(project.id) ?? { total: 0, overdue: 0 };
+      return {
+        ...project,
+        client: project.clients ?? null,
+        taskCount: stats.total,
+        overdueCount: stats.overdue,
+      };
+    }),
+    approvals: (approvalsResult.data ?? []) as DashboardApprovalRow[],
+  };
+}
+
 export async function fetchProjects(options: { includeAll?: boolean } = {}) {
   const { data, error } = await supabase
     .from("projects")
