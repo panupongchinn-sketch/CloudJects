@@ -1,4 +1,4 @@
-import { Outlet, createFileRoute, redirect, Link } from "@tanstack/react-router";
+import { Outlet, createFileRoute, redirect, Link, useNavigate } from "@tanstack/react-router";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { MobileSidebarTrigger } from "@/components/layout/mobile-sidebar-trigger";
 import { Bell, LogOut } from "lucide-react";
@@ -21,12 +21,17 @@ export const Route = createFileRoute("/_admin")({
 
 function AdminLayout() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const name = (user?.user_metadata?.full_name as string) || user?.email || "Admin";
+  const handleLogout = async () => {
+    await signOut();
+    navigate({ to: "/login", replace: true });
+  };
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       <AdminSidebar />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-12 items-center justify-between gap-2 border-b border-border bg-white px-3 sm:px-4">
+        <header className="flex h-14 items-center justify-between gap-2 border-b border-border bg-white px-3 sm:px-4">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <MobileSidebarTrigger variant="admin" />
             <div className="flex min-w-0 items-center gap-2 text-sm">
@@ -44,7 +49,7 @@ function AdminLayout() {
             <div className="hidden border border-border bg-white px-3 py-1 text-xs sm:block">
               <div className="max-w-[160px] truncate font-semibold text-slate-900">{name}</div>
             </div>
-            <button onClick={() => void signOut()} className="h-8 w-8 border border-border hover:bg-slate-100" title="Logout">
+            <button type="button" onClick={() => void handleLogout()} className="h-8 w-8 border border-border hover:bg-slate-100" title="Logout" aria-label="ออกจากระบบ">
               <LogOut className="mx-auto h-4 w-4 text-slate-600" />
             </button>
           </div>

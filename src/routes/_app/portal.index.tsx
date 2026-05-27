@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
+import portalHeroBackground from "../../../ChatGPT Image May 27, 2026, 09_08_51 AM.png";
 import {
   ArrowRight,
   Building2,
@@ -39,9 +40,11 @@ function PortalHome() {
 
   if (loading || busy) return <CloudJectLoading />;
 
-  const heroStyle = getProjectHeaderBackgroundStyle(
-    projects[0]?.header_background ?? PROJECT_HEADER_BACKGROUND_OPTIONS[5].value,
-  );
+  const heroStyle = {
+    backgroundImage: `url(${portalHeroBackground})`,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+  };
   const welcomeName =
     user?.user_metadata?.full_name?.trim() ||
     user?.email?.split("@")[0] ||
@@ -50,16 +53,16 @@ function PortalHome() {
   return (
     <div className="space-y-6">
       <section
-        className="relative overflow-hidden rounded-[28px] border border-slate-200/80 shadow-[0_18px_60px_-30px_rgba(15,23,42,0.35)]"
+        className="relative overflow-hidden border border-slate-200/80 shadow-[0_18px_60px_-30px_rgba(15,23,42,0.35)]"
         style={heroStyle}
       >
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.96)_0%,rgba(255,255,255,0.88)_34%,rgba(255,255,255,0.28)_72%,rgba(255,255,255,0.08)_100%)]" />
         <div className="relative z-10 px-6 py-8 md:px-7 md:py-9">
           <div className="max-w-3xl">
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">
-              ยินดีต้อนรับ, {welcomeName}
+            <h1 className="portal-hero-title text-3xl text-slate-950 md:text-4xl">
+              ยินดีต้อนรับ {welcomeName}
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-700">
+            <p className="portal-hero-copy mt-3 max-w-2xl text-sm leading-7 text-slate-700">
               ภาพรวมการดําเนินงานของโครงการที่คุณดูแลอยู่ พร้อมสถานะล่าสุด งานค้าง
               และรายการที่ต้องติดตามวันนี้
             </p>

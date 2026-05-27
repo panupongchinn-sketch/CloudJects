@@ -129,16 +129,18 @@ function Overview() {
               <h2 className="text-base font-semibold text-foreground">ข้อมูลโครงการ</h2>
             </div>
 
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <InfoCard label="ลูกค้า" value={client?.name} />
-              <InfoCard label="ผู้ติดต่อ" value={client?.contact} />
-              <InfoCard label="โทรศัพท์" value={client?.phone} icon={Phone} />
-              <InfoCard label="สถานที่" value={project.location} icon={MapPin} />
-              <InfoCard label="ผู้จัดการ" value={displayProfile(manager)} />
-              <InfoCard label="งบประมาณ" value={money(project.budget)} />
-              <InfoCard label="เริ่ม" value={project.start_date} icon={CalendarDays} />
-              <InfoCard label="สิ้นสุด" value={project.end_date} icon={CalendarDays} />
-              <InfoCard label="สถานะ" value={project.status} />
+            <div className="mt-4 border-t border-border">
+              <dl className="grid gap-x-8 sm:grid-cols-2 xl:grid-cols-3">
+                <ProjectInfoRow label="ลูกค้า" value={client?.name} />
+                <ProjectInfoRow label="ผู้ติดต่อ" value={client?.contact} />
+                <ProjectInfoRow label="โทรศัพท์" value={client?.phone} icon={Phone} />
+                <ProjectInfoRow label="สถานที่" value={project.location} icon={MapPin} />
+                <ProjectInfoRow label="ผู้จัดการ" value={displayProfile(manager)} />
+                <ProjectInfoRow label="งบประมาณ" value={money(project.budget)} />
+                <ProjectInfoRow label="เริ่ม" value={project.start_date} icon={CalendarDays} />
+                <ProjectInfoRow label="สิ้นสุด" value={project.end_date} icon={CalendarDays} />
+                <ProjectInfoRow label="สถานะ" value={project.status} />
+              </dl>
             </div>
           </section>
         </div>
@@ -349,7 +351,7 @@ function ProjectTaskItem({
   );
 }
 
-function InfoCard({
+function ProjectInfoRow({
   label,
   value,
   icon: Icon,
@@ -359,12 +361,12 @@ function InfoCard({
   icon?: typeof MapPin;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-border bg-background p-3">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+    <div className="min-w-0 border-b border-border/70 py-4 last:border-b-0">
+      <dt className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
         {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
         {label}
-      </div>
-      <div className="mt-1 truncate text-sm font-semibold text-foreground">{value ?? "-"}</div>
+      </dt>
+      <dd className="mt-2 truncate text-sm font-semibold text-foreground">{value ?? "-"}</dd>
     </div>
   );
 }

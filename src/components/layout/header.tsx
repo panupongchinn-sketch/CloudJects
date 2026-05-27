@@ -11,11 +11,11 @@ export function Header({ title, subtitle }: { title: string; subtitle?: string }
   const handleLogout = async () => {
     await signOut();
     toast.success("ออกจากระบบแล้ว");
-    navigate({ to: "/login" });
+    navigate({ to: "/login", replace: true });
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-border bg-white px-3 sm:gap-3 sm:px-4">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-white px-3 sm:gap-3 sm:px-4">
       <MobileSidebarTrigger />
 
       <div className="hidden min-w-0 flex-1 md:block">
@@ -45,8 +45,10 @@ export function Header({ title, subtitle }: { title: string; subtitle?: string }
 
       {user ? (
         <button
+          type="button"
           onClick={handleLogout}
           title={user.email ?? "ออกจากระบบ"}
+          aria-label="ออกจากระบบ"
           className="inline-flex h-8 w-8 items-center justify-center rounded-sm border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
         >
           <LogOut className="h-4 w-4" />

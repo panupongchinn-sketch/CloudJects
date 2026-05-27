@@ -36,16 +36,16 @@ function PortalLayout() {
   const handleLogout = async () => {
     await signOut();
     toast.success("ออกจากระบบแล้ว");
-    navigate({ to: "/login" });
+    navigate({ to: "/login", replace: true });
   };
 
   return (
     <>
-      <header className="sticky top-0 z-30 border-b border-[#E5E7EB] bg-white/95 shadow-[0_1px_0_rgba(15,23,42,0.03)] backdrop-blur-sm">
-        <div className="px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-end">
-            <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-end xl:w-auto">
-              <div className="flex h-11 w-full items-center rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-500 shadow-sm transition-colors hover:border-slate-300 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 lg:h-12 lg:max-w-[300px] xl:w-[400px]">
+      <header className="sticky top-0 z-30 h-14 border-b border-[#E5E7EB] bg-white/95 shadow-[0_1px_0_rgba(15,23,42,0.03)] backdrop-blur-sm">
+        <div className="flex h-full items-center px-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 flex-1 items-center justify-end">
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-2 xl:flex-none">
+              <div className="hidden h-10 w-full items-center rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-500 shadow-sm transition-colors hover:border-slate-300 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 md:flex lg:max-w-[300px] xl:w-[400px]">
                 <Search className="mr-3 h-4 w-4 shrink-0 text-slate-400" />
                 <input
                   placeholder="ค้นหาโครงการ, งาน, เอกสาร..."
@@ -57,28 +57,30 @@ function PortalLayout() {
               </div>
 
               <div className="flex items-center justify-end gap-2">
-                <div className="pt-1 lg:hidden">
+                <div className="lg:hidden">
                   <MobileSidebarTrigger />
                 </div>
 
                 <button
                   aria-label="การแจ้งเตือน"
-                  className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 lg:h-12 lg:w-12"
+                  className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50"
                 >
                   <Bell className="h-[18px] w-[18px]" />
                   <span className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-white" />
                 </button>
 
-                <button className="inline-flex h-11 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover lg:h-12 lg:px-5">
+                <button className="inline-flex h-10 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover lg:px-5">
                   <Plus className="h-4 w-4" />
                   สร้างใหม่
                 </button>
 
                 {user ? (
                   <button
+                    type="button"
                     onClick={handleLogout}
                     title={user.email ?? "ออกจากระบบ"}
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 lg:h-12 lg:w-12"
+                    aria-label="ออกจากระบบ"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
                   >
                     <LogOut className="h-[18px] w-[18px]" />
                   </button>

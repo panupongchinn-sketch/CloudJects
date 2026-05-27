@@ -6,6 +6,7 @@ import {
   type AppSessionUser,
 } from "@/lib/app-auth-client";
 import { signOutAppSession } from "@/lib/app-auth.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface AuthState {
   session: { token: string; expiresAt: string } | null;
@@ -50,11 +51,16 @@ export function useAuth(): AuthState {
 export async function signOut() {
   const session = getStoredAppSession();
   clearStoredAppSession();
+
+  try {
+    await supabase.auth.signOut();
+  } catch {
+    // App-managed auth is authoritative; ignore stale Supabase auth state.
+  }
+
   if (session?.token) {
-    try {
-      await signOutAppSession({ data: { token: session.token } });
-    } catch {
+    void signOutAppSession({ data: { token: session.token } }).catch(() => {
       // Ignore stale or already-removed sessions.
-    }
+    });
   }
 }
