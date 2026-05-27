@@ -264,34 +264,34 @@ function ProjectLayout() {
               {tabs
                 .filter((tab) => tab.to !== "/projects/$projectId/settings" || canManageSettings)
                 .map((tab) => {
-                const href = tab.to.replace("$projectId", projectId);
-                const active = pathname === href;
-                const Icon = tab.icon;
-                return (
-                  <li key={tab.to}>
-                    <Link
-                      to={tab.to}
-                      params={{ projectId }}
-                      className={cn(
-                        "inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors",
-                        active
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      <span className="inline-flex items-center gap-2">
-                        <span>{tab.label}</span>
-                        {tab.to === "/projects/$projectId/chat" && unreadChatCount > 0 ? (
-                          <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
-                            {unreadChatCount > 99 ? "99+" : unreadChatCount}
-                          </span>
-                        ) : null}
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
+                  const href = tab.to.replace("$projectId", projectId);
+                  const active = pathname === href;
+                  const Icon = tab.icon;
+                  return (
+                    <li key={tab.to}>
+                      <Link
+                        to={tab.to}
+                        params={{ projectId }}
+                        className={cn(
+                          "inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors",
+                          active
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span className="inline-flex items-center gap-2">
+                          <span>{tab.label}</span>
+                          {tab.to === "/projects/$projectId/chat" && unreadChatCount > 0 ? (
+                            <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                              {unreadChatCount > 99 ? "99+" : unreadChatCount}
+                            </span>
+                          ) : null}
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
             </ul>
           </nav>
         </section>
