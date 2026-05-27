@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import portalHeroBackground from "../../../ChatGPT Image May 27, 2026, 09_08_51 AM.png";
+import portalHeroBackground from "@/assets/portal-hero.png";
 import {
   ArrowRight,
   Building2,
