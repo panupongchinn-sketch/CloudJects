@@ -13,7 +13,7 @@ import { Camera, Loader2, Pencil, Shield, Trash2, Upload, User as UserIcon, Buil
 import { supabase } from "@/integrations/supabase/client";
 import { changeAppPassword } from "@/lib/app-auth.functions";
 import { getStoredAppSession, setStoredAppSession } from "@/lib/app-auth-client";
-import { signOut, useAuth } from "@/hooks/use-auth";
+import { redirectToLogin, signOut, useAuth } from "@/hooks/use-auth";
 import { CloudJectLoading } from "@/components/loading/cloudject-loading";
 
 export const Route = createFileRoute("/_app/settings")({
@@ -516,7 +516,7 @@ function SecuritySection() {
             variant="destructive"
             onClick={async () => {
               await signOut();
-              toast.success("Signed out");
+              redirectToLogin();
             }}
           >
             Sign out

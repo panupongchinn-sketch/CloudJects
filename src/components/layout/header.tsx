@@ -1,17 +1,15 @@
-import { Bell, LogOut, Plus, Search } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
-import { signOut, useAuth } from "@/hooks/use-auth";
+import { LogOut, Search } from "lucide-react";
+import { redirectToLogin, signOut, useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { MobileSidebarTrigger } from "./mobile-sidebar-trigger";
 
 export function Header({ title, subtitle }: { title: string; subtitle?: string }) {
-  const navigate = useNavigate();
   const { user } = useAuth();
 
   const handleLogout = async () => {
     await signOut();
     toast.success("ออกจากระบบแล้ว");
-    navigate({ to: "/login", replace: true });
+    redirectToLogin();
   };
 
   return (
@@ -32,16 +30,6 @@ export function Header({ title, subtitle }: { title: string; subtitle?: string }
         />
         <kbd className="ml-2 hidden border border-border bg-muted px-1.5 py-0.5 text-[10px] lg:inline">Ctrl K</kbd>
       </div>
-
-      <button className="relative inline-flex h-8 w-8 items-center justify-center rounded-sm border border-border hover:bg-accent">
-        <Bell className="h-4 w-4" />
-        <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary" />
-      </button>
-
-      <button className="hidden h-8 items-center gap-1.5 rounded-sm bg-primary px-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary-hover md:inline-flex">
-        <Plus className="h-4 w-4" />
-        สร้างใหม่
-      </button>
 
       {user ? (
         <button

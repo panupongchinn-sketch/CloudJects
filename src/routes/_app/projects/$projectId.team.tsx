@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Plus, Search, ShieldCheck, Trash2, Users } from "lucide-react";
+import { Loader2, Phone, Plus, Search, ShieldCheck, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { fetchOrganizationAssignableUsers, fetchProjectBundle, initials, type ProfileRow } from "@/lib/app-data";
@@ -107,33 +107,38 @@ function TeamPage() {
               const assignedTasks = bundle.tasks.filter((task) => task.assignee_id === member.user_id);
               const isManager = member.user_id === bundle.project.manager_id;
               return (
-                <article key={member.id} className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_180px_120px]">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary-soft text-sm font-semibold text-primary">
-                      {initials(profile?.full_name, profile?.email)}
-                    </div>
+                <article key={member.id} className="grid gap-4 p-5 lg:grid-cols-[minmax(320px,1.25fr)_180px_140px_120px] lg:items-center">
+                  <div className="flex min-w-0 items-center gap-4">
+                    <ProfileAvatar profile={profile} size="lg" />
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="truncate text-sm font-semibold text-foreground">{profile?.full_name ?? profile?.email ?? member.user_id}</h3>
+                        <h3 className="truncate text-base font-semibold text-foreground">{profile?.full_name ?? profile?.email ?? member.user_id}</h3>
                         {isManager ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-foreground">
                             <ShieldCheck className="h-3 w-3" /> Project Manager
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground">{profile?.email ?? "-"}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                        <span className="truncate">{profile?.email ?? "-"}</span>
+                        <span className="inline-flex items-center gap-1">
+                          <Phone className="h-3.5 w-3.5" />
+                          {profile?.phone ?? "-"}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 text-sm lg:grid-cols-1">
+                  <div className="text-sm">
                     <div>
                       <div className="text-[11px] font-medium uppercase text-muted-foreground">Role</div>
                       <div className="mt-1 font-medium text-foreground">{member.role}</div>
                     </div>
-                    <div>
-                      <div className="text-[11px] font-medium uppercase text-muted-foreground">Assigned</div>
-                      <div className="mt-1 font-medium text-foreground">{assignedTasks.length} tasks</div>
-                    </div>
+                  </div>
+
+                  <div className="text-sm">
+                    <div className="text-[11px] font-medium uppercase text-muted-foreground">Assigned</div>
+                    <div className="mt-1 font-medium text-foreground">{assignedTasks.length} tasks</div>
                   </div>
 
                   <div className="flex items-center justify-start lg:justify-end">
@@ -181,9 +186,7 @@ function TeamPage() {
             availableProfiles.map((profile) => (
               <div key={profile.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background p-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-secondary text-xs font-semibold">
-                    {initials(profile.full_name, profile.email)}
-                  </div>
+                  <ProfileAvatar profile={profile} />
                   <div className="min-w-0">
                     <div className="truncate text-sm font-semibold text-foreground">{profile.full_name ?? profile.email}</div>
                     <div className="truncate text-xs text-muted-foreground">{profile.email}</div>
@@ -198,5 +201,26 @@ function TeamPage() {
         </div>
       </aside>
     </section>
+  );
+}
+
+function ProfileAvatar({
+  profile,
+  size = "sm",
+}: {
+  profile?: Pick<ProfileRow, "full_name" | "email" | "avatar_url" | "phone"> | null;
+  size?: "sm" | "lg";
+}) {
+  const sizeClass = size === "lg" ? "h-16 w-16 text-base" : "h-10 w-10 text-xs";
+  const toneClass = size === "lg" ? "bg-primary-soft text-primary" : "bg-secondary text-foreground";
+
+  return (
+    <div className={`grid ${sizeClass} shrink-0 place-items-center overflow-hidden rounded-full ${toneClass} font-semibold`}>
+      {profile?.avatar_url ? (
+        <img src={profile.avatar_url} alt={profile.full_name ?? profile.email ?? "Profile"} className="h-full w-full object-cover" />
+      ) : (
+        initials(profile?.full_name, profile?.email)
+      )}
+    </div>
   );
 }

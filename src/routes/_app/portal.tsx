@@ -1,23 +1,13 @@
-import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import {
-  LayoutDashboard,
-  CheckSquare,
-  FileText,
-  Camera,
-  MessageSquare,
-  Search,
-  Bell,
-  Plus,
-  LogOut,
-} from "lucide-react";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { LayoutDashboard, CheckSquare, FileText, Camera, MessageSquare, Search, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { MobileSidebarTrigger } from "@/components/layout/mobile-sidebar-trigger";
 import { cn } from "@/lib/utils";
-import { signOut, useAuth } from "@/hooks/use-auth";
+import { redirectToLogin, signOut, useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_app/portal")({
   component: PortalLayout,
-  head: () => ({ meta: [{ title: "พอร์ทัลพนักงาน — CloudJect" }] }),
+  head: () => ({ meta: [{ title: "Employee Portal - CloudJect" }] }),
 });
 
 const tabs: { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean }[] = [
@@ -30,13 +20,12 @@ const tabs: { to: string; label: string; icon: typeof LayoutDashboard; exact?: b
 
 function PortalLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const navigate = useNavigate();
   const { user } = useAuth();
 
   const handleLogout = async () => {
     await signOut();
     toast.success("ออกจากระบบแล้ว");
-    navigate({ to: "/login", replace: true });
+    redirectToLogin();
   };
 
   return (
@@ -60,19 +49,6 @@ function PortalLayout() {
                 <div className="lg:hidden">
                   <MobileSidebarTrigger />
                 </div>
-
-                <button
-                  aria-label="การแจ้งเตือน"
-                  className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50"
-                >
-                  <Bell className="h-[18px] w-[18px]" />
-                  <span className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-white" />
-                </button>
-
-                <button className="inline-flex h-10 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover lg:px-5">
-                  <Plus className="h-4 w-4" />
-                  สร้างใหม่
-                </button>
 
                 {user ? (
                   <button
@@ -102,9 +78,7 @@ function PortalLayout() {
                 to={t.to as any}
                 className={cn(
                   "shrink-0 inline-flex items-center gap-2 border-b-2 border-transparent text-sm transition-colors",
-                  active
-                    ? "border-primary font-semibold text-primary"
-                    : "text-slate-500 hover:text-slate-900",
+                  active ? "border-primary font-semibold text-primary" : "text-slate-500 hover:text-slate-900",
                 )}
               >
                 <Icon className="h-4 w-4" />

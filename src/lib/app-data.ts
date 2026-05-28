@@ -25,6 +25,7 @@ export type ProjectRow = {
   id: string;
   code: string;
   header_background?: string | null;
+  project_image_url?: string | null;
   name: string;
   client_id: string | null;
   location: string | null;
@@ -403,14 +404,13 @@ export async function fetchProjects(options: { includeAll?: boolean } = {}) {
   const ids = rows.map((project) => project.id);
   const managerIds = rows.map((project) => project.manager_id);
 
-  const [tasksResult, membersResult, managers] = await Promise.all([
+  const [tasksResult, membersResult] = await Promise.all([
     ids.length
       ? supabase.from("tasks").select("id,project_id,status,due_date").in("project_id", ids)
       : Promise.resolve({ data: [], error: null }),
     ids.length
       ? supabase.from("project_members").select("id,project_id,user_id,role,created_at").in("project_id", ids)
       : Promise.resolve({ data: [], error: null }),
-    fetchProfileMap(managerIds),
   ]);
 
   if (tasksResult.error) throw tasksResult.error;
@@ -418,6 +418,7 @@ export async function fetchProjects(options: { includeAll?: boolean } = {}) {
 
   const tasks = (tasksResult.data ?? []) as Pick<TaskRow, "id" | "project_id" | "status" | "due_date">[];
   const members = (membersResult.data ?? []) as ProjectMemberRow[];
+  const profiles = await fetchProfileMap([...managerIds, ...members.map((member) => member.user_id)]);
   const currentUserIds = options.includeAll ? [] : await currentAppUserIds();
   const visibleProjectIds = new Set(
     currentUserIds.length
@@ -434,14 +435,27 @@ export async function fetchProjects(options: { includeAll?: boolean } = {}) {
 
   return visibleRows.map((project) => {
     const projectTasks = tasks.filter((task) => task.project_id === project.id);
-    const memberCount = members.filter((member) => member.project_id === project.id).length;
+    const projectMembers = members.filter((member) => member.project_id === project.id);
+    const projectProfiles = new Map<string, ProfileRow>();
+
+    if (project.manager_id) {
+      const managerProfile = profiles.get(project.manager_id);
+      if (managerProfile) projectProfiles.set(project.manager_id, managerProfile);
+    }
+
+    for (const member of projectMembers) {
+      const profile = profiles.get(member.user_id);
+      if (profile) projectProfiles.set(member.user_id, profile);
+    }
+
     return {
       ...project,
       client: project.clients ?? null,
-      manager: project.manager_id ? managers.get(project.manager_id) ?? null : null,
+      manager: project.manager_id ? profiles.get(project.manager_id) ?? null : null,
       taskCount: projectTasks.length,
       overdueCount: projectTasks.filter((task) => isOverdue(task)).length,
-      memberCount,
+      memberCount: projectProfiles.size,
+      teamProfiles: Array.from(projectProfiles.values()),
     };
   });
 }

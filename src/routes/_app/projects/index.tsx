@@ -1,13 +1,13 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowRight, Building2, Filter, LayoutGrid, List, Loader2, MapPin, MoreVertical, Plus, Search, Star, User } from "lucide-react";
+import { ArrowRight, Building2, Filter, ImagePlus, LayoutGrid, List, Loader2, MapPin, MoreVertical, Plus, Search, Star, User, X } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/layout/header";
 import { CloudJectLoading } from "@/components/loading/cloudject-loading";
 import { StatusBadge } from "@/components/status-badge";
 import { ProgressBar } from "@/components/progress-bar";
-import { fetchProjects, money, type ProjectRow } from "@/lib/app-data";
+import { fetchProjects, initials, money, type ProjectRow } from "@/lib/app-data";
 import { createProject } from "@/lib/projects.functions";
 import {
   PROJECT_HEADER_BACKGROUND_OPTIONS,
@@ -37,6 +37,7 @@ function ProjectsPage() {
     name: "",
     clientName: "",
     location: "",
+    projectImageUrl: "",
     startDate: "",
     endDate: "",
     budget: "",
@@ -78,6 +79,7 @@ function ProjectsPage() {
       name: "",
       clientName: "",
       location: "",
+      projectImageUrl: "",
       startDate: "",
       endDate: "",
       budget: "",
@@ -95,6 +97,7 @@ function ProjectsPage() {
           name: form.name,
           clientName: form.clientName,
           location: form.location,
+          projectImageUrl: form.projectImageUrl,
           startDate: form.startDate,
           endDate: form.endDate,
           budget: form.budget ? Number(form.budget) : undefined,
@@ -203,6 +206,7 @@ function CreateProjectDialog({
     name: string;
     clientName: string;
     location: string;
+    projectImageUrl: string;
     startDate: string;
     endDate: string;
     budget: string;
@@ -214,6 +218,7 @@ function CreateProjectDialog({
 }) {
   const budgetValue = Number(form.budget || 0);
   const codePreview = form.code.trim() || "AUTO-GENERATE";
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const statusTone =
     form.status === "In Progress"
       ? "bg-[#0f6b5a]"
@@ -236,6 +241,27 @@ function CreateProjectDialog({
         </div>
 
         <form className="max-h-[calc(92vh-48px)] overflow-y-auto p-4 md:p-6" onSubmit={onSubmit}>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
+                toast.error("Supported formats: JPG, PNG, WebP, GIF");
+                event.target.value = "";
+                return;
+              }
+
+              void readFileAsDataUrl(file).then((result) => {
+                onChange("projectImageUrl", result);
+                event.target.value = "";
+              });
+            }}
+          />
+
           <div className="mb-5 grid gap-3 md:grid-cols-4">
             <MetricCard label="PROJECT CODE" value={codePreview} helper="Auto when blank" />
             <MetricCard label="BUDGET" value={money(budgetValue)} helper="Project estimate" />
@@ -334,6 +360,48 @@ function CreateProjectDialog({
                   </FormCell>
                 </div>
               </section>
+
+              <section className="border border-slate-300 bg-white">
+                <div className="border-b border-slate-300 bg-slate-100 px-4 py-2">
+                  <h3 className="text-sm font-semibold text-slate-950">Project Photo</h3>
+                </div>
+                <div className="p-4">
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    className="group relative flex min-h-[220px] w-full items-center justify-center overflow-hidden border border-dashed border-slate-300 bg-slate-50 transition-colors hover:border-blue-400 hover:bg-blue-50/40"
+                  >
+                    {form.projectImageUrl ? (
+                      <>
+                        <img src={form.projectImageUrl} alt="Project preview" className="absolute inset-0 h-full w-full object-cover" />
+                        <div className="absolute inset-0 bg-slate-950/25 opacity-0 transition-opacity group-hover:opacity-100" />
+                        <div className="relative z-10 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
+                          Change project photo
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center gap-3 px-6 text-center">
+                        <span className="grid h-14 w-14 place-items-center rounded-full bg-white text-blue-600 shadow-sm">
+                          <ImagePlus className="h-6 w-6" />
+                        </span>
+                        <div>
+                          <div className="text-sm font-semibold text-slate-900">Upload project photo</div>
+                          <div className="mt-1 text-xs text-slate-500">JPG, PNG, WebP or GIF</div>
+                        </div>
+                      </div>
+                    )}
+                  </button>
+
+                  {form.projectImageUrl ? (
+                    <div className="mt-3 flex justify-end">
+                      <Button type="button" variant="outline" size="sm" onClick={() => onChange("projectImageUrl", "")}>
+                        <X className="h-4 w-4" />
+                        Remove photo
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
             </div>
 
             <aside className="space-y-3">
@@ -349,6 +417,7 @@ function CreateProjectDialog({
                   <CheckRow done={!!form.clientName.trim()} label="Customer" />
                   <CheckRow done={!!form.startDate && !!form.endDate} label="Schedule" />
                   <CheckRow done={budgetValue > 0} label="Budget" />
+                  <CheckRow done={!!form.projectImageUrl} label="Project photo" />
                 </div>
               </div>
             </aside>
@@ -446,8 +515,15 @@ function ProjectShowcaseCard({ project, imageIndex }: { project: ProjectListItem
   const fallbackBackground =
     PROJECT_HEADER_BACKGROUND_OPTIONS[imageIndex % PROJECT_HEADER_BACKGROUND_OPTIONS.length].value;
   const headerStyle = getProjectHeaderBackgroundStyle(project.header_background ?? fallbackBackground);
-  const totalTasks = Math.max(project.taskCount, 24);
-  const teamCount = Math.max(project.memberCount ?? 0, project.manager ? 1 : 0);
+  const headerMediaStyle = project.project_image_url
+    ? {
+        backgroundImage: `linear-gradient(180deg, rgba(8,15,31,0.10), rgba(8,15,31,0.55)), url(${project.project_image_url})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }
+    : headerStyle;
+  const teamProfiles = project.teamProfiles ?? (project.manager ? [project.manager] : []);
+  const visibleTeamProfiles = teamProfiles.slice(0, 3);
 
   return (
     <Link
@@ -455,7 +531,7 @@ function ProjectShowcaseCard({ project, imageIndex }: { project: ProjectListItem
       params={{ projectId: project.id }}
       className="group overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-elevated"
     >
-      <div className="relative min-h-[132px] overflow-hidden p-4 text-white" style={headerStyle}>
+      <div className="relative min-h-[132px] overflow-hidden p-4 text-white" style={headerMediaStyle}>
         <div className="relative z-10 flex items-start justify-between">
           <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold shadow-lg ${statusClass}`}>
             {project.status}
@@ -497,7 +573,7 @@ function ProjectShowcaseCard({ project, imageIndex }: { project: ProjectListItem
         <div>
           <div className="text-xs text-muted-foreground">งานทั้งหมด</div>
           <div className="mt-1 text-base font-bold tabular-nums text-foreground">
-            {project.taskCount} <span className="text-xs font-medium text-muted-foreground">/ {totalTasks} tasks</span>
+            {project.taskCount} <span className="text-xs font-medium text-muted-foreground">tasks</span>
           </div>
         </div>
       </div>
@@ -506,17 +582,28 @@ function ProjectShowcaseCard({ project, imageIndex }: { project: ProjectListItem
         <div>
           <div className="mb-2 text-xs text-muted-foreground">ทีมงาน</div>
           <div className="flex items-center -space-x-2">
-            {Array.from({ length: Math.min(Math.max(teamCount, 1), 3) }).map((_, index) => (
+            {visibleTeamProfiles.length > 0 ? visibleTeamProfiles.map((profile) => (
               <div
-                key={index}
-                className="grid h-7 w-7 place-items-center rounded-full border-2 border-card bg-primary-soft text-[10px] font-semibold text-primary"
+                key={profile.id}
+                className="grid h-7 w-7 overflow-hidden rounded-full border-2 border-card bg-primary-soft text-[10px] font-semibold text-primary"
+                title={profile.full_name ?? profile.email ?? "Team member"}
               >
-                {index === 0 ? "PM" : index + 1}
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt={profile.full_name ?? profile.email ?? "Team member"} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="grid h-full w-full place-items-center">
+                    {initials(profile.full_name, profile.email)}
+                  </span>
+                )}
               </div>
-            ))}
-            {teamCount > 3 ? (
+            )) : (
               <div className="grid h-7 w-7 place-items-center rounded-full border-2 border-card bg-secondary text-[10px] font-semibold text-muted-foreground">
-                +{teamCount - 3}
+                -
+              </div>
+            )}
+            {teamProfiles.length > 3 ? (
+              <div className="grid h-7 w-7 place-items-center rounded-full border-2 border-card bg-secondary text-[10px] font-semibold text-muted-foreground">
+                +{teamProfiles.length - 3}
               </div>
             ) : null}
           </div>
@@ -608,6 +695,15 @@ function Field({ label, className, children }: { label: string; className?: stri
       {children}
     </label>
   );
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("Cannot read image file"));
+    reader.readAsDataURL(file);
+  });
 }
 
 function EmptyBlock({ text }: { text: string }) {

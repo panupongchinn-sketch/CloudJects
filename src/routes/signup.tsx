@@ -91,14 +91,15 @@ function SignupPage() {
 
       <div className="flex items-center justify-center overflow-y-auto bg-gradient-to-br from-white via-sky-50 to-blue-100 p-4 lg:p-8">
         <div className="w-full max-w-[560px] rounded-2xl border border-blue-100 bg-white p-6 shadow-xl shadow-blue-100/70 md:p-8">
-          <div className="lg:hidden flex items-center justify-center gap-2.5 mb-6">
-            <BrandLogo className="h-10 w-10 object-contain shrink-0" />
-            <div className="text-base font-semibold">CloudJect</div>
+          <div className="mb-6 flex justify-center lg:hidden">
+            <BrandLogo variant="signup" className="h-auto w-full max-w-[240px] object-contain" />
           </div>
 
           <div className="mb-7">
-            <div className="flex items-center justify-center gap-3 text-center">
-              <BrandLogo className="h-11 w-11 object-contain shrink-0" />
+            <div className="text-center">
+              <div className="mb-4 flex justify-center">
+                <BrandLogo variant="signup" className="h-auto w-full max-w-[260px] object-contain" />
+              </div>
               <div>
                 <h1 className="text-2xl font-bold text-slate-900 tracking-tight">สมัครใช้งาน</h1>
                 <p className="mt-1 text-sm text-slate-500 font-medium">

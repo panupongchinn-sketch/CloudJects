@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchProjectBundle, isOverdue } from "@/lib/app-data";
 import { getAppSessionToken } from "@/lib/app-auth-client";
 import { getProjectChatUnreadState } from "@/lib/chat.functions";
+import { ProjectLayoutContext } from "@/lib/project-layout-context";
 import { fetchProjectSettingsAccess } from "@/lib/project-access";
 import { getProjectHeaderBackgroundStyle } from "@/lib/project-header-backgrounds";
 import { cn } from "@/lib/utils";
@@ -296,7 +297,9 @@ function ProjectLayout() {
           </nav>
         </section>
 
-        <Outlet />
+        <ProjectLayoutContext.Provider value={{ bundle, loading, error, setBundle }}>
+          <Outlet />
+        </ProjectLayoutContext.Provider>
       </main>
     </>
   );

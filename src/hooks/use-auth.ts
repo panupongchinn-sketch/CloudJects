@@ -48,6 +48,11 @@ export function useAuth(): AuthState {
   return state;
 }
 
+export function redirectToLogin() {
+  if (typeof window === "undefined") return;
+  window.location.replace("/login");
+}
+
 export async function signOut() {
   const session = getStoredAppSession();
   clearStoredAppSession();

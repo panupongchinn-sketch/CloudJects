@@ -45,7 +45,7 @@ function LoginPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [loadAdvertisements]);
 
   useEffect(() => {
     if (advertisements.length <= 1) return;
@@ -86,7 +86,7 @@ function LoginPage() {
     : [{ id: "fallback", title: "CloudJect", imageUrl: heroImage }];
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-background">
+    <div className="grid min-h-screen bg-background lg:grid-cols-2">
       <div className="relative hidden overflow-hidden bg-slate-950 lg:block">
         {slides.map((item, index) => (
           <img
@@ -118,16 +118,14 @@ function LoginPage() {
 
       <div className="flex items-center justify-center bg-gradient-to-br from-white via-sky-50 to-blue-100 p-6 lg:p-12">
         <div className="w-full max-w-[480px] rounded-2xl border border-blue-100 bg-white p-8 shadow-xl shadow-blue-100/70 md:p-12">
-          <div className="mb-8 flex items-center justify-center gap-2.5 lg:hidden">
-            <BrandLogo className="h-11 w-11 shrink-0 object-contain" />
-            <div className="text-base font-semibold">CloudJect</div>
+          <div className="mb-8 flex justify-center lg:hidden">
+            <BrandLogo variant="signup" className="h-auto w-full max-w-[220px] object-contain" />
           </div>
 
           <div className="mb-10 text-center">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">เข้าสู่ระบบ</h1>
-            <p className="mt-3 text-sm font-medium text-slate-500">
-              ใช้บัญชีของแอปโดยไม่พึ่ง Supabase Auth
-            </p>
+            <div className="flex justify-center">
+              <BrandLogo variant="signup" className="h-auto w-full max-w-[320px] object-contain" />
+            </div>
           </div>
 
           <form className="space-y-6" onSubmit={handleSubmit}>

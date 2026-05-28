@@ -1,8 +1,8 @@
-import { Outlet, createFileRoute, redirect, Link, useNavigate } from "@tanstack/react-router";
+import { Outlet, createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { MobileSidebarTrigger } from "@/components/layout/mobile-sidebar-trigger";
 import { Bell, LogOut } from "lucide-react";
-import { signOut, useAuth } from "@/hooks/use-auth";
+import { redirectToLogin, signOut, useAuth } from "@/hooks/use-auth";
 import { getStoredAppSession } from "@/lib/app-auth-client";
 
 export const Route = createFileRoute("/_admin")({
@@ -21,11 +21,10 @@ export const Route = createFileRoute("/_admin")({
 
 function AdminLayout() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const name = (user?.user_metadata?.full_name as string) || user?.email || "Admin";
   const handleLogout = async () => {
     await signOut();
-    navigate({ to: "/login", replace: true });
+    redirectToLogin();
   };
   return (
     <div className="flex min-h-screen bg-background text-foreground">
