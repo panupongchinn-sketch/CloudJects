@@ -174,6 +174,32 @@ async function currentAppUserIds() {
   return Array.from(ids);
 }
 
+async function currentOrganizationId() {
+  const session = getStoredAppSession();
+  const sessionUserId = session?.user.id ?? null;
+  const sessionEmail = session?.user.email ?? null;
+  if (!sessionUserId && !sessionEmail) return null;
+
+  const lookups = await Promise.all([
+    sessionUserId
+      ? supabase.from("app_users").select("organization_id").eq("id", sessionUserId).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    sessionEmail
+      ? supabase.from("app_users").select("organization_id").eq("email", sessionEmail).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    sessionUserId
+      ? supabase.from("app_users").select("organization_id").eq("user_id", sessionUserId).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  for (const result of lookups) {
+    if (result.error) throw result.error;
+    if (result.data?.organization_id) return result.data.organization_id as string;
+  }
+
+  return null;
+}
+
 export async function fetchProfiles() {
   const { data, error } = await supabase
     .from("profiles")
@@ -184,9 +210,13 @@ export async function fetchProfiles() {
 }
 
 export async function fetchManagedUsers() {
+  const organizationId = await currentOrganizationId();
+  if (!organizationId) return [];
+
   const { data, error } = await supabase
     .from("app_users")
     .select("id,full_name,email,avatar_url,role,organization_id,is_active")
+    .eq("organization_id", organizationId)
     .order("full_name", { ascending: true });
   if (!error) {
     const users = (data ?? []) as ProfileRow[];
@@ -211,6 +241,7 @@ export async function fetchManagedUsers() {
   const { data: fallbackData, error: fallbackError } = await supabase
     .from("app_users")
     .select("id,email")
+    .eq("organization_id", organizationId)
     .order("email", { ascending: true });
   if (fallbackError) throw fallbackError;
 

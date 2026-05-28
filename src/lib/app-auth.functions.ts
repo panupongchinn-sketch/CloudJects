@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
+import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -75,6 +75,23 @@ export const signInWithAppAuth = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => LoginSchema.parse(d))
   .handler(async ({ data }) => {
     const email = data.email.toLowerCase();
+    const { data: signupAccount, error: signupError } = await supabaseAdmin
+      .from("signup_accounts")
+      .select("id,app_user_id,email,password_hash,is_active,full_name")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (signupError) throw new Error(signupError.message);
+
+    if (signupAccount && signupAccount.is_active && verifyPassword(data.password, signupAccount.password_hash)) {
+      return createSession({
+        id: signupAccount.app_user_id,
+        email: signupAccount.email,
+        fullName: signupAccount.full_name ?? null,
+        isPlatformAdmin: false,
+      });
+    }
+
     const { data: account, error } = await supabaseAdmin
       .from("app_users")
       .select("id,user_id,email,password_hash,is_active,full_name")
@@ -143,47 +160,152 @@ export const signUpWithTrial = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => SignupSchema.parse(d))
   .handler(async ({ data }) => {
     const email = data.email.toLowerCase();
+    const passwordHash = hashPassword(data.password);
 
-    const { data: existing } = await supabaseAdmin.from("app_users").select("id").eq("email", email).maybeSingle();
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from("signup_accounts")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
+    if (existingError) {
+      throw new Error(existingError.message);
+    }
     if (existing) {
       throw new Error("Email already exists");
     }
 
-    const userId = randomUUID();
-    const authUsers = supabaseAdmin.schema("auth").from("users");
-    const { error: authError } = await authUsers.insert({
-      id: userId,
-      aud: "authenticated",
-      role: "authenticated",
-      email,
-      encrypted_password: "app-managed-login",
-      email_confirmed_at: new Date().toISOString(),
-      confirmed_at: new Date().toISOString(),
-      raw_user_meta_data: {
-        full_name: data.fullName,
-        company_name: data.company,
-        phone_number: data.phone,
-        company_address: data.address,
-      },
-      raw_app_meta_data: {},
-    } as any);
-
-    if (authError) {
-      throw new Error(authError.message);
+    const { data: existingAppUser, error: duplicateAppUserError } = await supabaseAdmin
+      .from("app_users")
+      .select("id,organization_id")
+      .eq("email", email)
+      .maybeSingle();
+    if (duplicateAppUserError) {
+      throw new Error(duplicateAppUserError.message);
     }
 
-    const { error: appUserError } = await supabaseAdmin.from("app_users").insert({
-      user_id: userId,
-      email,
-      password_hash: hashPassword(data.password),
-      is_active: true,
-    });
+    let organizationId = existingAppUser?.organization_id ?? null;
+
+    if (organizationId) {
+      const { error: organizationUpdateError } = await supabaseAdmin
+        .from("organizations")
+        .update({
+          name: data.company,
+          address: data.address,
+          phone: data.phone,
+          email,
+          contact_name: data.fullName,
+          status: "trial",
+        })
+        .eq("id", organizationId);
+      if (organizationUpdateError) {
+        throw new Error(organizationUpdateError.message);
+      }
+    } else {
+      const { data: organization, error: organizationError } = await supabaseAdmin
+        .from("organizations")
+        .insert({
+          name: data.company,
+          address: data.address,
+          phone: data.phone,
+          email,
+          contact_name: data.fullName,
+          status: "trial",
+        })
+        .select("id")
+        .single();
+      if (organizationError) {
+        throw new Error(organizationError.message);
+      }
+      organizationId = organization.id;
+    }
+
+    const { data: starterPlan } = await supabaseAdmin
+      .from("subscription_plans")
+      .select("id")
+      .eq("code", "starter")
+      .maybeSingle();
+
+    if (starterPlan?.id) {
+      const trialEndsAt = new Date();
+      trialEndsAt.setDate(trialEndsAt.getDate() + 15);
+
+      const { data: existingSubscription, error: existingSubscriptionError } = await supabaseAdmin
+        .from("organization_subscriptions")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      if (existingSubscriptionError) {
+        throw new Error(existingSubscriptionError.message);
+      }
+
+      if (!existingSubscription) {
+        const { error: subscriptionError } = await supabaseAdmin.from("organization_subscriptions").insert({
+          organization_id: organizationId,
+          plan_id: starterPlan.id,
+          status: "trial",
+          billing_cycle: "monthly",
+          monthly_price: 0,
+          start_date: new Date().toISOString().slice(0, 10),
+          next_billing_date: trialEndsAt.toISOString().slice(0, 10),
+          trial_ends_at: trialEndsAt.toISOString().slice(0, 10),
+        });
+
+        if (subscriptionError) {
+          throw new Error(subscriptionError.message);
+        }
+      }
+    }
+
+    const appUserMutation = existingAppUser
+      ? supabaseAdmin
+          .from("app_users")
+          .update({
+            full_name: data.fullName,
+            email,
+            password_hash: passwordHash,
+            role: "company_admin",
+            organization_id: organizationId,
+            is_active: true,
+          })
+          .eq("id", existingAppUser.id)
+          .select("id,email,full_name")
+          .single()
+      : supabaseAdmin
+          .from("app_users")
+          .insert({
+            full_name: data.fullName,
+            email,
+            password_hash: passwordHash,
+            role: "company_admin",
+            organization_id: organizationId,
+            is_active: true,
+          })
+          .select("id,email,full_name")
+          .single();
+
+    const { data: appUser, error: appUserError } = await appUserMutation;
     if (appUserError) {
       throw new Error(appUserError.message);
     }
 
+    const { error: signupAccountError } = await supabaseAdmin.from("signup_accounts").insert({
+      app_user_id: appUser.id,
+      organization_id: organizationId,
+      full_name: data.fullName,
+      company: data.company,
+      phone: data.phone,
+      address: data.address,
+      email,
+      password_hash: passwordHash,
+      role: "company_admin",
+      is_active: true,
+    });
+    if (signupAccountError) {
+      throw new Error(signupAccountError.message);
+    }
+
     return createSession({
-      id: userId,
+      id: appUser.id,
       email,
       fullName: data.fullName,
       isPlatformAdmin: false,
