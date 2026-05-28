@@ -1,5 +1,5 @@
 import defaultLogo from "@/assets/cloudject_cloud_icon_filled_white_blue.png";
-import signupLogo from "../../../ChatGPT Image May 28, 2026, 09_46_55 AM.png";
+import signupLogo from "@/assets/signup-logo.png";
 
 type BrandLogoProps = {
   className?: string;
